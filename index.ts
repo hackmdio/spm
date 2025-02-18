@@ -106,6 +106,7 @@ function startApp (app) {
     const err = out
     const proc = spawn(script, argsArr, {
       env,
+      cwd: path.dirname(configPath),
       detached: true,
       stdio: ['ignore', out, err],
     })
@@ -227,6 +228,24 @@ switch (cmd) {
     break
   case 'list':
     listApps()
+    break
+  case 'jlist':
+    const apps = config.apps.map(app => {
+      const pidFiles = fs.readdirSync(PID_DIR).filter(file => file.startsWith(app.name + '_') && file.endsWith('.pid'))
+      const running = []
+      pidFiles.forEach(file => {
+        const pidPath = path.join(PID_DIR, file)
+        const pid = parseInt(fs.readFileSync(pidPath, 'utf8').trim(), 10)
+        try {
+          process.kill(pid, 0)
+          running.push(pid)
+        } catch (e) {
+          // ignore error if process does not exist
+        }
+      })
+      return { name: app.name, running }
+    })
+    console.log(JSON.stringify(apps, null, 2))
     break
   case 'restart':
     let restarted = false
