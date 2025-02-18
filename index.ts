@@ -18,8 +18,7 @@ for (let i = 0; i < argv.length; i++) {
 
 const cmd = filteredArgs[0] || ''
 if (!cmd) {
-  console.log('Usage: node spm2 {start|kill|logs|rotate} [appName] [--config <config file>]')
-  process.exit(1)
+  usage()
 }
 
 const target = filteredArgs[1] || ''
