@@ -145,11 +145,18 @@ switch (cmd) {
   case 'start':
     let found = false
     config.apps.forEach((app) => {
-      if (app.name === target) {
-        startApp(app)
+      const isCheck = app.name === target
+      const shouldRun = target === 'all'
+
+      if (isCheck) {
         found = true
       }
+
+      if (isCheck || shouldRun) {
+        startApp(app)
+      }
     })
+
     if (!found && target !== 'all') {
       console.log(`Service "${target}" not found. Listing available services:`)
       listApps()
