@@ -3,7 +3,8 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "build": "bun build index.ts --target node --outdir dist"
+    "build": "bun build index.ts --target node --outdir dist",
+    "postinstall": "npm run build"
   },
   "bin": {
     "spm": "./dist/index.js"
