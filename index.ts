@@ -21,6 +21,7 @@ interface Config {
 
 let config: Config;
 let configPath: string;
+let cwd: string;
 
 const homeDir = path.join(os.homedir(), '.spm2')
 if (!fs.existsSync(homeDir)) fs.mkdirSync(homeDir)
@@ -76,7 +77,7 @@ function startApp(app: App): void {
     const err = out;
     const proc = spawn(script, argsArr, {
       env,
-      cwd: path.dirname(configPath),
+      cwd,
       detached: true,
       stdio: ['ignore', out, err],
     });
@@ -318,10 +319,11 @@ program
 
 program.hook('preAction', (thisCommand, actionCommand) => {
   const configFile = thisCommand.opts().config;
-  let configPath = path.join(__dirname, configFile);
+  configPath = path.join(__dirname, configFile);
   if (!fs.existsSync(configPath)) {
     configPath = path.join(process.cwd(), configFile);
   }
+  cwd = path.dirname(configPath)
   config = require(configPath);
 });
 
