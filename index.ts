@@ -3,31 +3,9 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { spawn } = require('child_process')
+const { Command } = require('commander')
 
-const argv = process.argv.slice(2)
-let configFile = './ecosystem.custom.config.js'
-const filteredArgs = []
-for (let i = 0; i < argv.length; i++) {
-  if (argv[i] === '--config' && i < argv.length - 1) {
-    configFile = argv[i + 1]
-    i++
-  } else {
-    filteredArgs.push(argv[i])
-  }
-}
-
-const cmd = filteredArgs[0] || ''
-if (!cmd) {
-  usage()
-}
-
-const target = filteredArgs[1] || ''
-
-let configPath = path.join(__dirname, configFile)
-if (!fs.existsSync(configPath)) {
-  configPath = path.join(process.cwd(), configFile)
-}
-const config = require(configPath)
+let config;
 
 const homeDir = path.join(os.homedir(), '.spm2')
 if (!fs.existsSync(homeDir)) fs.mkdirSync(homeDir)
@@ -36,29 +14,6 @@ const PID_DIR = path.join(homeDir, 'pids')
 
 if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR)
 if (!fs.existsSync(PID_DIR)) fs.mkdirSync(PID_DIR)
-
-function usage () {
-  console.log(`
-Usage: node spm2 <command> [serviceName] [--config <config file>]
-
-Commands:
-  start        Start service instance(s). Use "all" as serviceName to start all services.
-  kill         Kill service instance(s). Use "all" as serviceName to kill all services.
-  stop         Stop service instance(s). Use "all" as serviceName to stop all services.
-  logs         Display logs for service instance(s). Use -t option to tail logs in real time.
-  rotate       Rotate log files if they exceed a threshold (10MB).
-  list         List services with their running PIDs.
-  restart      Restart service instance(s). Use "all" as serviceName to restart all services.
-
-Options:
-  --config     Specify a custom ecosystem configuration file.
-  -t           Tail log files in real time.
-
-Example:
-  node spm2 start myService --config ./ecosystem.custom.config.js
-`)
-  process.exit(1)
-}
 
 function parseArgs (args) {
   return args.split(' ').filter((a) => a.length > 0)
@@ -141,29 +96,57 @@ function listApps() {
   })
 }
 
-switch (cmd) {
-  case 'start':
+const program = new Command()
+
+program
+  .version('1.0.0')
+  .option('--config <file>', 'Specify a custom ecosystem configuration file', './ecosystem.custom.config.js')
+
+program
+  .command('start [service]')
+  .description('Start service instance(s)')
+  .action((service) => {
+    let target = service || ''
+    let hasRunning = false
+    fs.readdirSync(PID_DIR).forEach((file) => {
+      if (file.endsWith('.pid')) {
+        const pidPath = path.join(PID_DIR, file)
+        const pid = parseInt(fs.readFileSync(pidPath, 'utf8').trim(), 10)
+        try {
+          process.kill(pid, 0)
+          hasRunning = true
+        } catch (e) {
+          // ignore if process is not running
+        }
+      }
+    })
+    if (!hasRunning) {
+      console.log("No running process found. Starting all services...")
+      target = 'all'
+    }
     let found = false
     config.apps.forEach((app) => {
       const isCheck = app.name === target
       const shouldRun = target === 'all'
-
       if (isCheck) {
         found = true
       }
-
       if (isCheck || shouldRun) {
         startApp(app)
       }
     })
-
     if (!found && target !== 'all') {
       console.log(`Service "${target}" not found. Listing available services:`)
       listApps()
     }
-    break
-  case 'kill':
-  case 'stop':
+  })
+
+program
+  .command('stop [service]')
+  .alias('kill')
+  .description('Stop service instance(s)')
+  .action((service) => {
+    let target = service || ''
     let killed = false
     fs.readdirSync(PID_DIR).forEach((file) => {
       if (file.endsWith('.pid')) {
@@ -186,11 +169,15 @@ switch (cmd) {
       console.log(`No process found for service "${target}". Listing available services:`)
       listApps()
     }
-    break
-  case 'logs': {
-    const args = process.argv.slice(3).filter(arg => arg !== '-t')
-    const follow = process.argv.slice(3).includes('-t')
-    const logTarget = args[0] || ''
+  })
+
+program
+  .command('logs [service]')
+  .option('-t, --tail', 'Tail log files in real time')
+  .description('Display logs for service instance(s)')
+  .action((service, options) => {
+    const logTarget = service || ''
+    const follow = options.tail
     const logFiles = fs.readdirSync(LOG_DIR).filter((file) => {
       return (!logTarget || file.startsWith(logTarget + '_')) && file.endsWith('.log')
     })
@@ -208,9 +195,12 @@ switch (cmd) {
         console.log(`====== Contents of ${file} ======\n${content}\n`)
       })
     }
-    break
-  }
-  case 'rotate':
+  })
+
+program
+  .command('rotate')
+  .description('Rotate log files if they exceed a threshold (10MB)')
+  .action(() => {
     fs.readdirSync(LOG_DIR).forEach((file) => {
       if (file.endsWith('.log')) {
         const filePath = path.join(LOG_DIR, file)
@@ -225,11 +215,19 @@ switch (cmd) {
         }
       }
     })
-    break
-  case 'list':
+  })
+
+program
+  .command('list')
+  .description('List services with their running PIDs')
+  .action(() => {
     listApps()
-    break
-  case 'jlist':
+  })
+
+program
+  .command('jlist')
+  .description('List services in JSON format with their running PIDs')
+  .action(() => {
     const apps = config.apps.map(app => {
       const pidFiles = fs.readdirSync(PID_DIR).filter(file => file.startsWith(app.name + '_') && file.endsWith('.pid'))
       const running = []
@@ -246,14 +244,15 @@ switch (cmd) {
       return { name: app.name, running }
     })
     console.log(JSON.stringify(apps, null, 2))
-    break
-  case 'restart':
+  })
+
+program
+  .command('restart [service]')
+  .description('Restart service instance(s)')
+  .action((service) => {
+    let target = service || ''
     let restarted = false
-    if (!target) {
-      console.log('Service name required for restart.')
-      usage()
-    }
-    if (target === 'all') {
+    if (!target || target === 'all') {
       fs.readdirSync(PID_DIR).forEach((file) => {
         if (file.endsWith('.pid')) {
           const pidPath = path.join(PID_DIR, file)
@@ -300,7 +299,16 @@ switch (cmd) {
       console.log(`Service "${target}" not found. Listing available services:`)
       listApps()
     }
-    break
-  default:
-    usage()
-}
+  })
+
+program.hook('preAction', (thisCommand, actionCommand) => {
+  const configFile = thisCommand.opts().config;
+  let configPath = path.join(__dirname, configFile);
+  if (!fs.existsSync(configPath)) {
+    configPath = path.join(process.cwd(), configFile);
+  }
+  config = require(configPath);
+});
+
+
+program.parse(process.argv)
