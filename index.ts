@@ -1,11 +1,26 @@
 #!/usr/bin/env node
-const fs = require('fs')
-const path = require('path')
-const os = require('os')
-const { spawn } = require('child_process')
-const { Command } = require('commander')
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { spawn } from 'node:child_process';
+import { Command } from 'commander';
 
-let config;
+interface App {
+  name: string;
+  script: string;
+  args?: string;
+  instances?: number;
+  env?: Record<string, any>;
+  increment_vars?: string[];
+  increment_var?: string;
+}
+
+interface Config {
+  apps: App[];
+}
+
+let config: Config;
+let configPath: string;
 
 const homeDir = path.join(os.homedir(), '.spm2')
 if (!fs.existsSync(homeDir)) fs.mkdirSync(homeDir)
@@ -15,85 +30,85 @@ const PID_DIR = path.join(homeDir, 'pids')
 if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR)
 if (!fs.existsSync(PID_DIR)) fs.mkdirSync(PID_DIR)
 
-function parseArgs (args) {
-  return args.split(' ').filter((a) => a.length > 0)
+function parseArgs(args: string): string[] {
+  return args.split(' ').filter((a: string) => a.length > 0);
 }
 
-function adjustEnv (env, incVars, index) {
-  const newEnv = Object.assign({}, process.env, env)
-  incVars.forEach((key) => {
+function adjustEnv(env: Record<string, any>, incVars: string[], index: number): Record<string, any> {
+  const newEnv = Object.assign({}, process.env, env);
+  incVars.forEach((key: string) => {
     if (newEnv[key]) {
-      const val = newEnv[key]
-      const match = val.match(/^(\D*?)(\d+)$/)
+      const val = newEnv[key];
+      const match = val.match(/^(\D*?)(\d+)$/);
       if (match) {
-        const base = match[1]
-        const num = parseInt(match[2], 10)
-        newEnv[key] = base + (num + index)
+        const base = match[1];
+        const num = parseInt(match[2], 10);
+        newEnv[key] = base + (num + index);
       } else {
-        const num = parseInt(val, 10)
+        const num = parseInt(val, 10);
         if (!isNaN(num)) {
-          newEnv[key] = (num + index).toString()
+          newEnv[key] = (num + index).toString();
         }
       }
     }
-  })
-  return newEnv
+  });
+  return newEnv;
 }
 
-function startApp (app) {
-  const appName = app.name
-  const script = app.script
-  const argsArr = app.args ? parseArgs(app.args) : []
-  const instances = app.instances || 1
-  let incVars = []
+function startApp(app: App): void {
+  const appName = app.name;
+  const script = app.script;
+  const argsArr = app.args ? parseArgs(app.args) : [];
+  const instances = app.instances || 1;
+  let incVars: string[] = [];
   if (app.increment_vars) {
-    incVars = app.increment_vars
+    incVars = app.increment_vars;
   } else if (app.increment_var) {
-    incVars = app.increment_var.split(',').map(s => s.trim())
+    incVars = app.increment_var.split(',').map(s => s.trim());
   }
 
   for (let i = 0; i < instances; i++) {
-    const env = adjustEnv(app.env || {}, incVars, i)
-    const logFile = path.join(LOG_DIR, `${appName}_${i}.log`)
-    const pidFile = path.join(PID_DIR, `${appName}_${i}.pid`)
-    console.log(`Starting ${appName} instance ${i}...`)
-    const out = fs.openSync(logFile, 'a')
-    const err = out
+    const env = adjustEnv(app.env || {}, incVars, i);
+    const logFile = path.join(LOG_DIR, `${appName}_${i}.log`);
+    const pidFile = path.join(PID_DIR, `${appName}_${i}.pid`);
+    console.log(`Starting ${appName} instance ${i}...`);
+    const out = fs.openSync(logFile, 'a');
+    const err = out;
     const proc = spawn(script, argsArr, {
       env,
       cwd: path.dirname(configPath),
       detached: true,
       stdio: ['ignore', out, err],
-    })
-    fs.writeFileSync(pidFile, proc.pid.toString(), 'utf8')
-    proc.unref()
+    });
+    fs.writeFileSync(pidFile, proc.pid.toString(), 'utf8');
+    proc.unref();
   }
 }
 
-function listApps() {
-  console.log('Available apps:')
+function listApps(): void {
+  console.log('Available apps:');
   config.apps.forEach((app) => {
-    process.stdout.write(`- ${app.name}: `)
+    process.stdout.write(`- ${app.name}: `);
     const pidFiles = fs.readdirSync(PID_DIR).filter((file) => {
-      return file.startsWith(app.name + '_') && file.endsWith('.pid')
-    })
-    const running = []
+      return file.startsWith(app.name + '_') && file.endsWith('.pid');
+    });
+    const running: number[] = [];
     pidFiles.forEach((file) => {
-      const pidPath = path.join(PID_DIR, file)
-      const pid = parseInt(fs.readFileSync(pidPath, 'utf8'), 10)
+      const pidPath = path.join(PID_DIR, file);
+      const pid = parseInt(fs.readFileSync(pidPath, 'utf8'), 10);
       try {
-        process.kill(pid, 0)
-        running.push(pid)
+        process.kill(pid, 0);
+        running.push(pid);
       } catch (e) {
         // process not running, ignore
       }
-    })
+    });
     if (running.length > 0) {
-      console.log(`Running PIDs: ${running.join(', ')}`)
+      console.log(`Running PIDs: ${running.join(', ')}`);
     } else {
-      console.log('Not running')
+      console.log('Not running');
     }
-  })
+  });
 }
 
 const program = new Command()
