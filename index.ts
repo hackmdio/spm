@@ -10,7 +10,7 @@ interface App {
   script: string;
   args?: string;
   instances?: number;
-  env?: Record<string, any>;
+  env?: Record<string, string>;
   increment_vars?: string[];
   increment_var?: string;
 }
@@ -35,24 +35,24 @@ function parseArgs(args: string): string[] {
   return args.split(' ').filter((a: string) => a.length > 0);
 }
 
-function adjustEnv(env: Record<string, any>, incVars: string[], index: number): Record<string, any> {
+function adjustEnv(env: Record<string, string>, incVars: string[], index: number): Record<string, string> {
   const newEnv = Object.assign({}, process.env, env);
-  incVars.forEach((key: string) => {
+  for (const key of incVars) {
     if (newEnv[key]) {
       const val = newEnv[key];
       const match = val.match(/^(\D*?)(\d+)$/);
       if (match) {
         const base = match[1];
-        const num = parseInt(match[2], 10);
-        newEnv[key] = base + (num + index);
+        const num = Number.parseInt(match[2], 10);
+        newEnv[key] = `${base}${num + index}`;
       } else {
-        const num = parseInt(val, 10);
-        if (!isNaN(num)) {
+        const num = Number.parseInt(val, 10);
+        if (!Number.isNaN(num)) {
           newEnv[key] = (num + index).toString();
         }
       }
     }
-  });
+  }
   return newEnv;
 }
 
@@ -81,35 +81,35 @@ function startApp(app: App): void {
       detached: true,
       stdio: ['ignore', out, err],
     });
-    fs.writeFileSync(pidFile, proc.pid.toString(), 'utf8');
+    fs.writeFileSync(pidFile, (proc.pid || '').toString(), 'utf8');
     proc.unref();
   }
 }
 
 function listApps(): void {
   console.log('Available apps:');
-  config.apps.forEach((app) => {
+  for (const app of config.apps) {
     process.stdout.write(`- ${app.name}: `);
     const pidFiles = fs.readdirSync(PID_DIR).filter((file) => {
-      return file.startsWith(app.name + '_') && file.endsWith('.pid');
+      return file.startsWith(`${app.name}_`) && file.endsWith('.pid');
     });
     const running: number[] = [];
-    pidFiles.forEach((file) => {
+    for (const file of pidFiles) {
       const pidPath = path.join(PID_DIR, file);
-      const pid = parseInt(fs.readFileSync(pidPath, 'utf8'), 10);
+      const pid = Number.parseInt(fs.readFileSync(pidPath, 'utf8'), 10);
       try {
         process.kill(pid, 0);
         running.push(pid);
       } catch (e) {
         // process not running, ignore
       }
-    });
+    }
     if (running.length > 0) {
       console.log(`Running PIDs: ${running.join(', ')}`);
     } else {
       console.log('Not running');
     }
-  });
+  };
 }
 
 const program = new Command()
@@ -124,33 +124,33 @@ program
   .action((service) => {
     let target = service || ''
     let hasRunning = false
-    fs.readdirSync(PID_DIR).forEach((file) => {
+    for (const file of fs.readdirSync(PID_DIR)) {
       if (file.endsWith('.pid')) {
-        const pidPath = path.join(PID_DIR, file)
-        const pid = parseInt(fs.readFileSync(pidPath, 'utf8').trim(), 10)
+        const pidPath = path.join(PID_DIR, file);
+        const pid = Number.parseInt(fs.readFileSync(pidPath, 'utf8').trim(), 10);
         try {
-          process.kill(pid, 0)
-          hasRunning = true
+          process.kill(pid, 0);
+          hasRunning = true;
         } catch (e) {
           // ignore if process is not running
         }
       }
-    })
+    }
     if (!hasRunning) {
       console.log("No running process found. Starting all services...")
       target = 'all'
     }
-    let found = false
-    config.apps.forEach((app) => {
-      const isCheck = app.name === target
-      const shouldRun = target === 'all'
+    let found = false;
+    for (const app of config.apps) {
+      const isCheck = app.name === target;
+      const shouldRun = target === 'all';
       if (isCheck) {
-        found = true
+        found = true;
       }
       if (isCheck || shouldRun) {
-        startApp(app)
+        startApp(app);
       }
-    })
+    }
     if (!found && target !== 'all') {
       console.log(`Service "${target}" not found. Listing available services:`)
       listApps()
@@ -162,25 +162,25 @@ program
   .alias('kill')
   .description('Stop service instance(s)')
   .action((service) => {
-    let target = service || ''
+    const target = service || ''
     let killed = false
-    fs.readdirSync(PID_DIR).forEach((file) => {
+    for (const file of fs.readdirSync(PID_DIR)) {
       if (file.endsWith('.pid')) {
-        const baseApp = file.split('_')[0]
+        const baseApp = file.split('_')[0];
         if (!target || target === 'all' || target === baseApp) {
-          const pidPath = path.join(PID_DIR, file)
-          const pid = parseInt(fs.readFileSync(pidPath, 'utf8'), 10)
-          console.log(`Killing process ${pid} (${file})...`)
+          const pidPath = path.join(PID_DIR, file);
+          const pid = Number.parseInt(fs.readFileSync(pidPath, 'utf8'), 10);
+          console.log(`Killing process ${pid} (${file})...`);
           try {
-            process.kill(pid)
-            killed = true
+            process.kill(pid);
+            killed = true;
           } catch (e) {
-            console.error(`Failed to kill process ${pid}: ${e}`)
+            console.error(`Failed to kill process ${pid}: ${e}`);
           }
-          fs.unlinkSync(pidPath)
+          fs.unlinkSync(pidPath);
         }
       }
-    })
+    }
     if (!killed && target !== 'all') {
       console.log(`No process found for service "${target}". Listing available services:`)
       listApps()
@@ -195,7 +195,7 @@ program
     const logTarget = service || ''
     const follow = options.tail
     const logFiles = fs.readdirSync(LOG_DIR).filter((file) => {
-      return (!logTarget || file.startsWith(logTarget + '_')) && file.endsWith('.log')
+      return (!logTarget || file.startsWith(`${logTarget}_`)) && file.endsWith('.log')
     })
     if (follow) {
       if (logFiles.length === 0) {
@@ -206,10 +206,10 @@ program
       const tail = spawn('tail', ['-f', ...logPaths], { stdio: 'inherit' })
       tail.on('exit', (code) => process.exit(code))
     } else {
-      logFiles.forEach((file) => {
-        const content = fs.readFileSync(path.join(LOG_DIR, file), 'utf8')
-        console.log(`====== Contents of ${file} ======\n${content}\n`)
-      })
+      for (const file of logFiles) {
+        const content = fs.readFileSync(path.join(LOG_DIR, file), 'utf8');
+        console.log(`====== Contents of ${file} ======\n${content}\n`);
+      }
     }
   })
 
@@ -217,7 +217,7 @@ program
   .command('rotate')
   .description('Rotate log files if they exceed a threshold (10MB)')
   .action(() => {
-    fs.readdirSync(LOG_DIR).forEach((file) => {
+    for (const file of fs.readdirSync(LOG_DIR)) {
       if (file.endsWith('.log')) {
         const filePath = path.join(LOG_DIR, file)
         const stats = fs.statSync(filePath)
@@ -230,7 +230,7 @@ program
           console.log(`Rotated ${file} to ${path.basename(newName)}`)
         }
       }
-    })
+    }
   })
 
 program
@@ -245,18 +245,18 @@ program
   .description('List services in JSON format with their running PIDs')
   .action(() => {
     const apps = config.apps.map(app => {
-      const pidFiles = fs.readdirSync(PID_DIR).filter(file => file.startsWith(app.name + '_') && file.endsWith('.pid'))
-      const running = []
-      pidFiles.forEach(file => {
-        const pidPath = path.join(PID_DIR, file)
-        const pid = parseInt(fs.readFileSync(pidPath, 'utf8').trim(), 10)
+      const pidFiles = fs.readdirSync(PID_DIR).filter(file => file.startsWith(`${app.name}_`) && file.endsWith('.pid'))
+      const running: number[] = [];
+      for (const file of pidFiles) {
+        const pidPath = path.join(PID_DIR, file);
+        const pid = Number.parseInt(fs.readFileSync(pidPath, 'utf8').trim(), 10);
         try {
-          process.kill(pid, 0)
-          running.push(pid)
+          process.kill(pid, 0);
+          running.push(pid);
         } catch (e) {
           // ignore error if process does not exist
         }
-      })
+      }
       return { name: app.name, running }
     })
     console.log(JSON.stringify(apps, null, 2))
@@ -266,50 +266,50 @@ program
   .command('restart [service]')
   .description('Restart service instance(s)')
   .action((service) => {
-    let target = service || ''
+    const target = service || ''
     let restarted = false
     if (!target || target === 'all') {
-      fs.readdirSync(PID_DIR).forEach((file) => {
+      for (const file of fs.readdirSync(PID_DIR)) {
         if (file.endsWith('.pid')) {
-          const pidPath = path.join(PID_DIR, file)
-          const pid = parseInt(fs.readFileSync(pidPath, 'utf8'), 10)
-          console.log(`Restart: Killing process ${pid} (${file})...`)
+          const pidPath = path.join(PID_DIR, file);
+          const pid = Number.parseInt(fs.readFileSync(pidPath, 'utf8'), 10);
+          console.log(`Restart: Killing process ${pid} (${file})...`);
           try {
-            process.kill(pid)
-            restarted = true
+            process.kill(pid);
+            restarted = true;
           } catch (e) {
-            console.error(`Failed to kill process ${pid}: ${e}`)
+            console.error(`Failed to kill process ${pid}: ${e}`);
           }
-          fs.unlinkSync(pidPath)
+          fs.unlinkSync(pidPath);
         }
-      })
-      config.apps.forEach((app) => {
+      }
+      for (const app of config.apps) {
         startApp(app)
-      })
+      }
     } else {
-      fs.readdirSync(PID_DIR).forEach((file) => {
+      for (const file of fs.readdirSync(PID_DIR)) {
         if (file.endsWith('.pid')) {
-          const baseApp = file.split('_')[0]
+          const baseApp = file.split('_')[0];
           if (baseApp === target) {
-            const pidPath = path.join(PID_DIR, file)
-            const pid = parseInt(fs.readFileSync(pidPath, 'utf8'), 10)
-            console.log(`Restart: Killing process ${pid} (${file})...`)
+            const pidPath = path.join(PID_DIR, file);
+            const pid = Number.parseInt(fs.readFileSync(pidPath, 'utf8'), 10);
+            console.log(`Restart: Killing process ${pid} (${file})...`);
             try {
-              process.kill(pid)
-              restarted = true
+              process.kill(pid);
+              restarted = true;
             } catch (e) {
-              console.error(`Failed to kill process ${pid}: ${e}`)
+              console.error(`Failed to kill process ${pid}: ${e}`);
             }
-            fs.unlinkSync(pidPath)
+            fs.unlinkSync(pidPath);
           }
         }
-      })
-      config.apps.forEach((app) => {
+      }
+      for (const app of config.apps) {
         if (app.name === target) {
-          startApp(app)
-          restarted = true
+          startApp(app);
+          restarted = true;
         }
-      })
+      }
     }
     if (!restarted && target !== 'all') {
       console.log(`Service "${target}" not found. Listing available services:`)
@@ -317,13 +317,13 @@ program
     }
   })
 
-program.hook('preAction', (thisCommand, actionCommand) => {
+program.hook('preAction', (thisCommand) => {
   const configFile = thisCommand.opts().config;
   configPath = path.join(__dirname, configFile);
   if (!fs.existsSync(configPath)) {
     configPath = path.join(process.cwd(), configFile);
   }
-  cwd = path.dirname(configPath)
+  cwd = path.dirname(configPath);
   config = require(configPath);
 });
 
