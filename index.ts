@@ -351,7 +351,8 @@ rotateCmd
     const watchLogFile = path.join(homeDir, 'rotate_watch.log');
     const out = fs.openSync(watchLogFile, 'a');
     const err = out;
-    const child = spawn(process.argv[0], [process.argv[1], 'rotate', 'watch', '--cleanup-interval', options.cleanupInterval], {
+    const __filename = fileURLToPath(import.meta.url);
+    const child = spawn(process.argv[0], [__filename, 'rotate', 'watch', '--cleanup-interval', options.cleanupInterval], {
       cwd,
       detached: true,
       stdio: ['ignore', out, err],
