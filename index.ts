@@ -358,9 +358,39 @@ program
   .action(() => {
     const watchPidPath = path.join(homeDir, 'rotate_watch.pid');
     fs.writeFileSync(watchPidPath, process.pid.toString(), 'utf8');
-    console.log(`Started rotate-watch process with PID ${process.pid}`);
+    const rotateWatchLog = path.join(homeDir, 'rotate_watch.log');
+    const logStream = fs.createWriteStream(rotateWatchLog, { flags: 'a' });
+    function log(msg: string) {
+      const timeStamp = new Date().toISOString();
+      const fullMsg = `[${timeStamp}] ${msg}\n`;
+      process.stdout.write(fullMsg);
+      logStream.write(fullMsg);
+    }
+    log(`Started rotate-watch process with PID ${process.pid}`);
     rotateLogFiles();
-    setInterval(rotateLogFiles, 5 * 60 * 1000);
+    setInterval(() => {
+      rotateLogFiles();
+      log("rotateLogFiles() executed");
+    }, 5 * 60 * 1000);
+  })
+
+program
+  .command('rotate-stop')
+  .description('Stop the long-running rotate-watch process')
+  .action(() => {
+    const watchPidPath = path.join(homeDir, 'rotate_watch.pid');
+    if (fs.existsSync(watchPidPath)) {
+      const pid = Number.parseInt(fs.readFileSync(watchPidPath, 'utf8'), 10);
+      try {
+        process.kill(pid);
+        fs.unlinkSync(watchPidPath);
+        console.log(`Stopped rotate-watch process with PID ${pid}`);
+      } catch (e) {
+        console.error(`Failed to stop rotate-watch process with PID ${pid}: ${e}`);
+      }
+    } else {
+      console.log("No rotate-watch process found.");
+    }
   })
 
 program.hook('preAction', (thisCommand) => {
