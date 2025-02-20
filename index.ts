@@ -354,8 +354,10 @@ program
 
 program
   .command('rotate-watch')
-  .description('Hidden: continuously watch and rotate logs every 5 minutes')
-  .action(() => {
+  .description('Hidden: continuously watch and rotate logs with configurable clean up interval in minutes')
+  .option('--cleanup-interval <number>', 'Specify cleanup interval in seconds', '5')
+  .action((options) => {
+    const cleanupInterval = Number(options.cleanupInterval) * 1000;
     const watchPidPath = path.join(homeDir, 'rotate_watch.pid');
     fs.writeFileSync(watchPidPath, process.pid.toString(), 'utf8');
     const rotateWatchLog = path.join(homeDir, 'rotate_watch.log');
@@ -371,7 +373,7 @@ program
     setInterval(() => {
       rotateLogFiles();
       log("rotateLogFiles() executed");
-    }, 5 * 60 * 1000);
+    }, cleanupInterval);
   })
 
 program
