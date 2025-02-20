@@ -242,37 +242,8 @@ program
     }
   })
 
-program
-  .command('rotate')
-  .description('Rotate log files now and spawn a long-running rotate-watch process')
-  .option('--cleanup-interval <number>', 'Specify cleanup interval in seconds for rotate-watch process', '5')
-  .action((options) => {
-    rotateLogFiles();
-    // Check if rotate-watch process is already running
-    const watchPidPath = path.join(homeDir, 'rotate_watch.pid');
-    if (fs.existsSync(watchPidPath)) {
-      const existingPid = Number.parseInt(fs.readFileSync(watchPidPath, 'utf8'), 10);
-      try {
-        process.kill(existingPid, 0);
-        console.log(`Rotate-watch process already running with PID ${existingPid}`);
-        return;
-      } catch (e) {
-        // Process not running, proceed to spawn new
-      }
-    }
-    // Spawn the long-running rotate-watch process with cleanup interval
-    const watchLogFile = path.join(homeDir, 'rotate_watch.log');
-    const out = fs.openSync(watchLogFile, 'a');
-    const err = out;
-    const child = spawn(process.argv[0], [fileURLToPath(import.meta.url), 'rotate-watch', '--cleanup-interval', options.cleanupInterval], {
-      cwd,
-      detached: true,
-      stdio: ['ignore', out, err],
-    });
-    child.unref();
-    fs.writeFileSync(watchPidPath, (child.pid || '').toString(), 'utf8');
-    console.log(`Spawned long-running rotate-watch process with PID ${child.pid}`);
-  })
+const rotateCmd = new Command('rotate')
+  .description('Manage log rotation');
 
 program
   .command('list')
@@ -358,28 +329,55 @@ program
     }
   })
 
-program
-  .command('rotate-watch')
-  .description('Hidden: continuously watch and rotate logs with configurable clean up interval in minutes')
+rotateCmd
+  .command('start')
+  .description('Perform log rotation now and spawn a long-running rotate-watch process')
+  .option('--cleanup-interval <number>', 'Specify cleanup interval in seconds for rotate-watch process', '5')
+  .action((options) => {
+    rotateLogFiles();
+    // Check if rotate-watch process is already running
+    const watchPidPath = path.join(homeDir, 'rotate_watch.pid');
+    if (fs.existsSync(watchPidPath)) {
+      const existingPid = Number.parseInt(fs.readFileSync(watchPidPath, 'utf8'), 10);
+      try {
+        process.kill(existingPid, 0);
+        console.log(`Rotate-watch process already running with PID ${existingPid}`);
+        return;
+      } catch (e) {
+        // Process not running, proceed to spawn new
+      }
+    }
+    // Spawn the long-running rotate-watch process with cleanup interval
+    const watchLogFile = path.join(homeDir, 'rotate_watch.log');
+    const out = fs.openSync(watchLogFile, 'a');
+    const err = out;
+    const child = spawn(process.argv[0], [process.argv[1], 'rotate', 'watch', '--cleanup-interval', options.cleanupInterval], {
+      cwd,
+      detached: true,
+      stdio: ['ignore', out, err],
+    });
+    child.unref();
+    fs.writeFileSync(watchPidPath, (child.pid || '').toString(), 'utf8');
+    console.log(`Spawned long-running rotate-watch process with PID ${child.pid}`);
+  });
+
+rotateCmd
+  .command('watch')
+  .description('Continuously watch and rotate logs')
   .option('--cleanup-interval <number>', 'Specify cleanup interval in seconds', '5')
   .action((options) => {
     const cleanupInterval = Number(options.cleanupInterval) * 1000;
     const watchPidPath = path.join(homeDir, 'rotate_watch.pid');
     fs.writeFileSync(watchPidPath, process.pid.toString(), 'utf8');
-    function log(msg: string) {
-      const timeStamp = new Date().toISOString();
-      const fullMsg = `[${timeStamp}] ${msg}`;
-      console.log(fullMsg);
-    }
-    log(`Started rotate-watch process with PID ${process.pid}`);
+    console.log(`Started rotate-watch process with PID ${process.pid}`);
     setInterval(() => {
       rotateLogFiles();
-      log("rotateLogFiles() executed");
+      console.log("rotateLogFiles() executed");
     }, cleanupInterval);
-  })
+  });
 
-program
-  .command('rotate-stop')
+rotateCmd
+  .command('stop')
   .description('Stop the long-running rotate-watch process')
   .action(() => {
     const watchPidPath = path.join(homeDir, 'rotate_watch.pid');
@@ -400,7 +398,9 @@ program
     } else {
       console.log("No rotate-watch process found.");
     }
-  })
+  });
+
+program.addCommand(rotateCmd);
 
 program.hook('preAction', (thisCommand) => {
   const configFile = thisCommand.opts().config;
