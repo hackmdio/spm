@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { Command } from 'commander';
+import { fileURLToPath } from 'node:url';
 
 interface App {
   name: string;
@@ -13,6 +14,34 @@ interface App {
   env?: Record<string, string>;
   increment_vars?: string[];
   increment_var?: string;
+}
+
+function rotateLogFiles(): void {
+  // Rotate log files exceeding 10MB
+  for (const file of fs.readdirSync(LOG_DIR)) {
+    if (file.endsWith('.log')) {
+      const filePath = path.join(LOG_DIR, file);
+      const stats = fs.statSync(filePath);
+      if (stats.size >= 10485760) {
+        const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '');
+        const newName = `${filePath}.${timestamp}.bak`;
+        fs.renameSync(filePath, newName);
+        fs.writeFileSync(filePath, '');
+        console.log(`Rotated ${file} to ${path.basename(newName)}`);
+      }
+    }
+  }
+  // Remove log files older than 3 days
+  const now = Date.now();
+  const threeDays = 3 * 24 * 60 * 60 * 1000;
+  for (const file of fs.readdirSync(LOG_DIR)) {
+    const filePath = path.join(LOG_DIR, file);
+    const stats = fs.statSync(filePath);
+    if (now - stats.mtimeMs > threeDays) {
+      fs.unlinkSync(filePath);
+      console.log(`Removed old log file: ${file}`);
+    }
+  }
 }
 
 interface Config {
@@ -213,25 +242,8 @@ program
     }
   })
 
-program
-  .command('rotate')
-  .description('Rotate log files if they exceed a threshold (10MB)')
-  .action(() => {
-    for (const file of fs.readdirSync(LOG_DIR)) {
-      if (file.endsWith('.log')) {
-        const filePath = path.join(LOG_DIR, file)
-        const stats = fs.statSync(filePath)
-        if (stats.size >= 10485760) {
-          // 10 MB
-          const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '')
-          const newName = `${filePath}.${timestamp}.bak`
-          fs.renameSync(filePath, newName)
-          fs.writeFileSync(filePath, '')
-          console.log(`Rotated ${file} to ${path.basename(newName)}`)
-        }
-      }
-    }
-  })
+const rotateCmd = new Command('rotate')
+  .description('Manage log rotation');
 
 program
   .command('list')
@@ -316,6 +328,80 @@ program
       listApps()
     }
   })
+
+rotateCmd
+  .command('start')
+  .description('Perform log rotation now and spawn a long-running rotate-watch process')
+  .option('--cleanup-interval <number>', 'Specify cleanup interval in seconds for rotate-watch process', '5')
+  .action((options) => {
+    rotateLogFiles();
+    // Check if rotate-watch process is already running
+    const watchPidPath = path.join(homeDir, 'rotate_watch.pid');
+    if (fs.existsSync(watchPidPath)) {
+      const existingPid = Number.parseInt(fs.readFileSync(watchPidPath, 'utf8'), 10);
+      try {
+        process.kill(existingPid, 0);
+        console.log(`Rotate-watch process already running with PID ${existingPid}`);
+        return;
+      } catch (e) {
+        // Process not running, proceed to spawn new
+      }
+    }
+    // Spawn the long-running rotate-watch process with cleanup interval
+    const watchLogFile = path.join(homeDir, 'rotate_watch.log');
+    const out = fs.openSync(watchLogFile, 'a');
+    const err = out;
+    const __filename = fileURLToPath(import.meta.url);
+    const child = spawn(process.argv[0], [__filename, 'rotate', 'watch', '--cleanup-interval', options.cleanupInterval], {
+      cwd,
+      detached: true,
+      stdio: ['ignore', out, err],
+    });
+    child.unref();
+    fs.writeFileSync(watchPidPath, (child.pid || '').toString(), 'utf8');
+    console.log(`Spawned long-running rotate-watch process with PID ${child.pid}`);
+  });
+
+rotateCmd
+  .command('watch')
+  .description('Continuously watch and rotate logs')
+  .option('--cleanup-interval <number>', 'Specify cleanup interval in seconds', '5')
+  .action((options) => {
+    const cleanupInterval = Number(options.cleanupInterval) * 1000;
+    const watchPidPath = path.join(homeDir, 'rotate_watch.pid');
+    fs.writeFileSync(watchPidPath, process.pid.toString(), 'utf8');
+    console.log(`Started rotate-watch process with PID ${process.pid}`);
+    setInterval(() => {
+      rotateLogFiles();
+      console.log("rotateLogFiles() executed");
+    }, cleanupInterval);
+  });
+
+rotateCmd
+  .command('stop')
+  .description('Stop the long-running rotate-watch process')
+  .action(() => {
+    const watchPidPath = path.join(homeDir, 'rotate_watch.pid');
+    if (fs.existsSync(watchPidPath)) {
+      const pid = Number.parseInt(fs.readFileSync(watchPidPath, 'utf8'), 10);
+      try {
+        process.kill(pid);
+        fs.unlinkSync(watchPidPath);
+        console.log(`Stopped rotate-watch process with PID ${pid}`);
+      } catch (e) {
+        if (e && e.code === 'ESRCH') {
+          fs.unlinkSync(watchPidPath);
+          console.log(`Rotate-watch process with PID ${pid} not found. Removed stale pid file.`);
+        } else {
+          console.error(`Failed to stop rotate-watch process with PID ${pid}: ${e}`);
+        }
+      }
+    } else {
+      console.log("No rotate-watch process found.");
+    }
+  });
+
+program.addCommand(rotateCmd);
 
 program.hook('preAction', (thisCommand) => {
   const configFile = thisCommand.opts().config;
