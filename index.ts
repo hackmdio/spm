@@ -247,6 +247,7 @@ const rotateCmd = new Command('rotate')
 
 program
   .command('list')
+  .alias('ls')
   .description('List services with their running PIDs')
   .action(() => {
     listApps()
