@@ -235,6 +235,7 @@ const program = new Command()
 program
   .version('1.0.0')
   .option('--config <file>', 'Specify a custom ecosystem configuration file', './ecosystem.custom.config.js')
+  .option('-v, --verbose', 'Enable verbose output')
 
 program
   .command('start [service]')
@@ -660,7 +661,9 @@ program.hook('preAction', async (thisCommand) => {
       process.exit(1);
     }
 
-    console.log(`Loaded configuration from ${configPath} with ${config.apps.length} apps`);
+    if (thisCommand.opts().verbose) {
+      console.log(`Loaded configuration from ${configPath} with ${config.apps.length} apps`);
+    }
   } catch (error) {
     console.error(`Error in preAction hook: ${error}`);
     process.exit(1);
