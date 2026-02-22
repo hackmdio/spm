@@ -4,7 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@hackmd/spm.svg)](https://www.npmjs.com/package/@hackmd/spm)
 [![npm license](https://img.shields.io/npm/l/@hackmd/spm.svg)](https://www.npmjs.com/package/@hackmd/spm)
 
-A minimal process manager implementing a lean subset of [pm2](https://pm2.keymetrics.io/) features, with some extensions, designed for better development script setup. Lightweight, zero daemon, and ecosystem config compatible.
+A minimal process manager implementing a lean subset of [pm2](https://pm2.keymetrics.io/) features, with some extensions, designed for better development script setup. Lightweight, zero daemon, and PM2-inspired ecosystem config support.
 
 ## Features
 
@@ -71,11 +71,46 @@ spm logs api -t    # Tail logs
 | `instances` | Number of instances (default: 1) |
 | `env` | Environment variables |
 | `increment_vars` | Env vars to increment per instance (e.g. `PORT`) |
+| `increment_var` | Legacy alias for increment vars (comma-separated string, e.g. `PORT,WS_PORT`) |
+
+### Ecosystem File Field Support
+
+SPM supports PM2-inspired ecosystem files and deeper app objects without failing on extra fields.
+
+- SPM **actively uses**: `name`, `script`, `args`, `instances`, `env`, `increment_vars`, `increment_var`
+- SPM **ignores unsupported fields safely** so you can keep partially shared configs across tools
+- `increment_vars` is the preferred form; `increment_var` is kept as a compatibility alias in SPM
 
 Config file is resolved from `./ecosystem.custom.config.js` by default. Override with `--config`:
 
 ```bash
 spm --config ./my-ecosystem.config.js start
+```
+
+## PM2 Differences
+
+SPM intentionally implements a lean subset of PM2 behavior.
+
+- No daemon mode: processes are started detached and tracked with pid files under `~/.spm2/pids/`
+- No PM2 process metadata store: runtime state comes from pid files + OS process checks
+- `increment_vars` is supported directly; `increment_var` is also accepted and split by comma
+- Extra PM2 ecosystem fields are allowed in config objects but not interpreted unless listed in SPM supported fields
+
+Example for split increment vars:
+
+```javascript
+export default {
+  apps: [
+    {
+      name: 'api',
+      script: 'node',
+      args: 'server.js',
+      instances: 2,
+      env: { PORT: '3000', WS_PORT: '4000' },
+      increment_var: 'PORT,WS_PORT',
+    },
+  ],
+}
 ```
 
 ## Commands
