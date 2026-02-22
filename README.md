@@ -1,5 +1,9 @@
 # SPM — Simpler Process Manager
 
+[![npm version](https://img.shields.io/npm/v/@hackmd/spm.svg)](https://www.npmjs.com/package/@hackmd/spm)
+[![npm downloads](https://img.shields.io/npm/dm/@hackmd/spm.svg)](https://www.npmjs.com/package/@hackmd/spm)
+[![npm license](https://img.shields.io/npm/l/@hackmd/spm.svg)](https://www.npmjs.com/package/@hackmd/spm)
+
 A minimal process manager implementing a lean subset of [pm2](https://pm2.keymetrics.io/) features, with some extensions, designed for better development script setup. Lightweight, zero daemon, and ecosystem config compatible.
 
 ## Features
