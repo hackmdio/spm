@@ -96,9 +96,74 @@ Logs are stored in `~/.spm2/logs/`. Rotation:
 - Removes logs older than 3 days
 - Run `spm rotate start` for a background watcher
 
-## Shell Completions
+## Shell Integration
 
-See [Yukaii/dotfiles](https://github.com/Yukaii/dotfiles/commit/569b50824c19340cefb308f385168492418f98e7) for shell completion setup.
+Completions require [jq](https://jqlang.github.io/jq/). App selector also requires [fzf](https://github.com/junegunn/fzf).
+
+### Bash
+
+**Completions** — Source the script (requires [bash-completion](https://github.com/scop/bash-completion); on macOS: `brew install bash-completion@2`):
+
+```bash
+# After npm install -g @hackmd/spm:
+source $(npm root -g)/@hackmd/spm/completions/bash/spm.bash
+# Or add to ~/.bashrc:
+# source /path/to/spm/completions/bash/spm.bash
+```
+
+**App selector** — Source the script:
+
+```bash
+source $(npm root -g)/@hackmd/spm/completions/bash/spm_app_selector.sh
+# Then:
+spm_app_selector start
+spm_app_selector --appName=api restart
+```
+
+### Zsh
+
+**Completions** — Add the completion dir to `fpath` and ensure compinit runs:
+
+```bash
+# After npm install -g @hackmd/spm:
+fpath=($(npm root -g)/@hackmd/spm/completions/zsh $fpath)
+compinit
+# Or copy to a dir in $fpath:
+mkdir -p ~/.zsh/completions
+cp $(npm root -g)/@hackmd/spm/completions/zsh/_spm ~/.zsh/completions/
+# Add to ~/.zshrc: fpath=(~/.zsh/completions $fpath)
+```
+
+**App selector** — Source the script:
+
+```bash
+source $(npm root -g)/@hackmd/spm/completions/zsh/spm_app_selector.zsh
+spm_app_selector start
+```
+
+### Fish
+
+**Completions** — Copy to your Fish config:
+
+```bash
+mkdir -p ~/.config/fish/completions
+cp $(npm root -g)/@hackmd/spm/completions/fish/spm.fish ~/.config/fish/completions/
+```
+
+**App selector** — Copy the function:
+
+```bash
+mkdir -p ~/.config/fish/functions
+cp $(npm root -g)/@hackmd/spm/completions/fish/functions/spm_app_selector.fish ~/.config/fish/functions/
+```
+
+Usage:
+
+```fish
+spm_app_selector start
+spm_app_selector --appName=api restart
+spm_app_selector --config=ecosystem.config.js logs
+```
 
 ## License
 

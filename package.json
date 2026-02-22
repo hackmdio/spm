@@ -12,7 +12,8 @@
     "spm": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "completions"
   ],
   "repository": {
     "type": "git",

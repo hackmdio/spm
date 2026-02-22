@@ -1,0 +1,57 @@
+#compdef spm
+# Zsh completion for spm
+
+_spm_services() {
+  spm jlist 2>/dev/null | jq -r '.[].name'
+}
+
+_spm() {
+  local -a subcommands rotate_subcommands
+  subcommands=(start:Start\ service\ instance\(s\) stop:Stop\ service\ instance\(s\) kill:Alias\ for\ stop logs:Display\ logs list:List\ services\ with\ running\ PIDs jlist:List\ services\ in\ JSON\ format restart:Restart\ service\ instance\(s\) flush:Clear\ log\ file\ contents rotate:Manage\ log\ rotation)
+  rotate_subcommands=(start:Perform\ log\ rotation\ and\ spawn\ rotate-watch\ process watch:Continuously\ watch\ and\ rotate\ logs stop:Stop\ the\ rotate-watch\ process)
+
+  local context state line
+  typeset -A opt_args
+
+  _arguments -C \
+    '(-c --config)'{-c,--config}'[Specify ecosystem config file]:config file:_files' \
+    '(-v --verbose)'{-v,--verbose}'[Enable verbose output]' \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '1:subcommand:->subcommand' \
+    '*::args:->args'
+
+  case $state in
+    subcommand)
+      _describe 'subcommand' subcommands
+      ;;
+    args)
+      case $words[2] in
+        start|restart|flush)
+          _values 'service' $(_spm_services)
+          ;;
+        logs)
+          _arguments \
+            '(-t --tail)'{-t,--tail}'[Tail log files in real time]' \
+            '(-n --lines)'{-n,--lines}'[Number of lines to show]:lines' \
+            '(-f --filter)'{-f,--filter}'[Filter logs by pattern]:pattern' \
+            '(-h --help)'{-h,--help}'[Show help]' \
+            '::service:($(_spm_services))'
+          ;;
+        stop|kill)
+          _arguments \
+            '(-s --signal)'{-s,--signal}'[Signal to send]:signal:(SIGTERM SIGINT SIGKILL)' \
+            '(-h --help)'{-h,--help}'[Show help]' \
+            '::service:($(_spm_services))'
+          ;;
+        rotate)
+          _describe 'rotate subcommand' rotate_subcommands
+          ;;
+        *)
+          _normal
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_spm "$@"
