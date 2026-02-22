@@ -429,6 +429,44 @@ program
     }
   });
 
+program
+  .command('flush [service]')
+  .description('Clear log file contents without deleting files')
+  .action(async (service) => {
+    try {
+      const target = service || '';
+      let flushedCount = 0;
+
+      const logFiles = readdirSync(LOG_DIR).filter((file) => {
+        return (!target || file.startsWith(`${target}_`)) && file.endsWith('.log');
+      });
+
+      if (logFiles.length === 0) {
+        console.log('No log files found to flush.');
+        return;
+      }
+
+      for (const file of logFiles) {
+        const filePath = path.join(LOG_DIR, file);
+        try {
+          const stats = await fs.stat(filePath);
+          const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+          await fs.writeFile(filePath, '');
+          flushedCount++;
+          console.log(`Flushed: ${file} (cleared ${sizeMB} MB)`);
+        } catch (error) {
+          console.error(`Failed to flush ${file}: ${error}`);
+        }
+      }
+
+      if (flushedCount > 0) {
+        console.log(`\nTotal: Flushed ${flushedCount} log file(s)`);
+      }
+    } catch (error) {
+      console.error(`Error in flush command: ${error}`);
+    }
+  });
+
 const rotateCmd = new Command('rotate')
   .description('Manage log rotation');
 
@@ -638,6 +676,13 @@ async function hasRunningProcesses(): Promise<boolean> {
 
 program.hook('preAction', async (thisCommand) => {
   try {
+    // Skip config loading for commands that don't need app config
+    const isRotateCommand = process.argv.includes('rotate');
+    const isFlushCommand = process.argv.includes('flush');
+    if (isRotateCommand || isFlushCommand) {
+      return;
+    }
+
     const configFile = thisCommand.opts().config;
 
     // Try to find config file in different locations
