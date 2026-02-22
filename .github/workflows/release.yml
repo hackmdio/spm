@@ -42,6 +42,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build binary
+        shell: bash
         run: |
           case "${{ matrix.target }}" in
             linux-x64)
