@@ -1,6 +1,6 @@
 {
   "name": "@hackmd/spm",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Simpler Process Manager - minimal pm2-like features for better development script setup",
   "module": "index.ts",
   "type": "module",
