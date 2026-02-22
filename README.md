@@ -87,14 +87,14 @@ Config file is resolved from `./ecosystem.custom.config.js` by default. Override
 spm --config ./my-ecosystem.config.js start
 ```
 
-## PM2 Differences
+## PM2-Inspired Scope
 
-SPM intentionally implements a lean subset of PM2 behavior.
+SPM focuses on a small, practical subset of PM2-like workflows for development.
 
-- No daemon mode: processes are started detached and tracked with pid files under `~/.spm2/pids/`
-- No PM2 process metadata store: runtime state comes from pid files + OS process checks
+- No daemon model in SPM: processes are started detached and tracked with pid files under `~/.spm2/pids/`
+- No PM2-style metadata store in SPM: runtime state comes from pid files plus OS process checks
 - `increment_vars` is supported directly; `increment_var` is also accepted and split by comma
-- Extra PM2 ecosystem fields are allowed in config objects but not interpreted unless listed in SPM supported fields
+- Additional ecosystem fields can exist in app objects, but SPM only interprets its documented fields
 
 Example for split increment vars:
 
