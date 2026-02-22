@@ -1,21 +1,39 @@
 {
-  "name": "spm",
+  "name": "@hackmd/spm",
+  "version": "0.1.0",
+  "description": "Simpler Process Manager - minimal pm2-like features for better development script setup",
   "module": "index.ts",
   "type": "module",
   "scripts": {
     "build": "bun build index.ts --target node --outdir dist",
-    "postinstall": "npm run build"
+    "postinstall": "bun run build"
   },
   "bin": {
     "spm": "./dist/index.js"
   },
-  "devDependencies": {
-    "@types/bun": "latest"
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hackmdio/spm.git"
   },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
+  "bugs": "https://github.com/hackmdio/spm/issues",
+  "homepage": "https://github.com/hackmdio/spm#readme",
+  "keywords": [
+    "process-manager",
+    "pm2",
+    "development",
+    "cli"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
   }
 }
