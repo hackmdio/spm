@@ -352,7 +352,8 @@ program
 
       if (follow) {
         const logPaths = logFiles.map(file => path.join(LOG_DIR, file));
-        const tailArgs = ['-f'];
+        // Follow by file name so tail continues after log rotation.
+        const tailArgs = ['-F'];
 
         if (lines) {
           tailArgs.push('-n', lines);
